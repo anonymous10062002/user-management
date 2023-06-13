@@ -5,23 +5,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const {connection} = require('../config/db');
 const {sendSMS} = require('../utils/sendSMS');
-
-// userRoute.post('/signup',async(req,res)=>{
-//     const {unique_id,branch_id,role,name,email,contact,password,coordinates,mac_id,admin_otp,wrong_attempts,status}=req.body;
-//     try {
-//         const hashed=bcrypt.hashSync(password,4)
-//         connection.query(`insert into member (unique_id,branch_id,role,name,email,contact,password,coordinates,mac_id,admin_otp,wrong_attempts,admin_doc,status) values ('${unique_id}','${branch_id}','${role}','${name}','${email}','${contact}','${hashed}','${coordinates}','${mac_id}','${admin_otp}','${wrong_attempts}', NOW(), '${status}')`,(err,result)=>{
-//             if(err){
-//                 return res.send(err.message);
-//             }
-//             return res.send('signup_success')
-//         })
-        
-//     } catch (error) {
-//         console.log(error.message);
-//         res.status(400).json({err: 'Something went wrong!'});
-//     }
-// })
+let attempt=0;
 
 userRoute.post('/login',async(req,res) => {
     const {contact,password,macID,coordinates}=req.body;
@@ -31,34 +15,44 @@ userRoute.post('/login',async(req,res) => {
         }
         connection.query(`select * from member where contact = '${contact}'`,async(err,result) => {
             if(err){
-                res.sendStatus(400);
+                res.status(404).json({err: 'User not found!'});
             }
             else{
                 if(result.length){
+                    if(result[0].status===1){
+                        return res.status(402).json({err: 'Oops you are blocked!'});
+                    }
                     bcrypt.compare(password,result[0].password,async(err,status)=>{
-                        // console.log(password,status,result[0].password)
-                        if(status){
+                        if(status){ 
                             if(macID!==result[0].mac_id){
                                 // SEND OTP
                                 let otp = await sendSMS(result[0].contact);
                                 res.cookie('otp',otp,{expires: new Date(Date.now() + 600 * 1000)});
                                 res.cookie('contact',contact,{expires: new Date(Date.now() + 600 * 1000)});
                                 res.cookie('userID',result[0].id,{expires: new Date(Date.now() + 600 * 1000)});
-                                res.status(202).json({msg: 'OTP sent successfully. Valid for 10 minutes only'});
+                                return res.status(202).json({msg: 'OTP sent successfully. Valid for 10 minutes only'});
                             }
                             else{
                                 const token = jwt.sign({id:result[0].id},process.env.key);
-                                res.status(200).json({msg:'Logged in successfully',token});
+                                return res.status(200).json({msg:'Logged in successfully',token});
                             }
                         }
                         else{
-                            res.status(403).json({err: 'Invalid password'});
+                            attempt++;
+                            connection.query(`update member SET wrong_attempts = wrong_attempts+${1} WHERE contact = '${contact}'`);
+                            if(attempt===3){
+                                connection.query(`update member SET status = ${1} WHERE contact = '${contact}'`);
+                                return res.status(200).json({msg: 'You are blocked'});
+                            }
+                            else{
+                                return res.status(403).json({err: `Invalid password! Only ${3-attempt} attempts left`});
+                            } 
                         }
-                    });
+                    });  
                     
                 }
                 else{ 
-                    res.status(404).json({err: 'No user found!'})
+                    return res.status(404).json({err: 'No user found!'})
                 }
             }
         });
@@ -81,7 +75,7 @@ userRoute.post('/macID',async(req,res)=>{
             }
             else{
                 const token = jwt.sign({id:req.cookies.userID},process.env.key);
-                res.status(200).json({msg:'Logged in successfully',token});
+                return res.status(200).json({msg:'Logged in successfully',token});
             }
         });
     }

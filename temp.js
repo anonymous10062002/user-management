@@ -20,3 +20,20 @@
 // bcrypt.hash('ashish',4,(err,hashed)=>{
 //     console.log("SECOND",hashed)
 // })
+
+// userRoute.post('/signup',async(req,res)=>{
+//     const {unique_id,branch_id,role,name,email,contact,password,coordinates,mac_id,admin_otp,wrong_attempts,status}=req.body;
+//     try {
+//         const hashed=bcrypt.hashSync(password,4)
+//         connection.query(`insert into member (unique_id,branch_id,role,name,email,contact,password,coordinates,mac_id,admin_otp,wrong_attempts,admin_doc,status) values ('${unique_id}','${branch_id}','${role}','${name}','${email}','${contact}','${hashed}','${coordinates}','${mac_id}','${admin_otp}','${wrong_attempts}', NOW(), '${status}')`,(err,result)=>{
+//             if(err){
+//                 return res.send(err.message);
+//             }
+//             return res.send('signup_success')
+//         })
+        
+//     } catch (error) {
+//         console.log(error.message);
+//         res.status(400).json({err: 'Something went wrong!'});
+//     }
+// })
